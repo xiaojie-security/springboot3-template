@@ -1,0 +1,14 @@
+package com.security.backend.enums;
+
+public enum SysConfigKey {
+    DATA_TRANSFER_ENCRYPT,
+    USER_REGISTER,
+    OPERATION_LOG,
+    SINGLE_LOGIN,
+    TOKEN_EXPIRE_MINUTES,
+    SYSTEM_MAINTENANCE,
+    REPLAY_ATTACK_ENABLED,
+    REPLAY_ATTACK_TIMEOUT,
+    NONCE_CACHE_EXPIRE;
+}
+

@@ -1,0 +1,27 @@
+database:
+  host: 127.0.0.1
+  port: 3306
+  schema: temp
+  username: root
+  password: 1234
+
+redis:
+  database: 10
+  host: 127.0.0.1
+  port: 6379
+  password: redis
+
+security:
+  access:
+    secret: ${SECURITY_ACCESS_SECRET}
+    prefix: Bearer
+    header: Authorization
+  refresh:
+    secret: ${SECURITY_REFRESH_SECRET}
+    prefix: Bearer
+    header: Refresh-Authorization
+  exclude-url:
+    - /encrypt/**
+  rsa-private-key: ${SECURITY_RSA_PRIVATE_KEY}
+  rsa-public-key: ${SECURITY_RSA_PUBLIC_KEY}
+

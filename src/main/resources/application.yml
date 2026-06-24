@@ -1,0 +1,115 @@
+server:
+  # 服务启动端口号
+  port: 9000
+  undertow:
+    # 配置缓冲池
+    buffer-size: 16384
+    direct-buffers: true
+    threads:
+      io: 4
+      worker: 128
+
+
+# spring项目配置
+spring:
+  # 应用名称
+  application:
+    name: backend
+  # 激活的配置文件环境，优先读取环境变量，默认dev环境
+  profiles:
+    active: ${SPRING-PROFILES-ACTIVE:dev}
+  # Jackson序列化配置
+  jackson:
+    # Jackson序列化时使用的时区（北京时间）
+    time-zone: Asia/Shanghai
+    # Jackson序列化日期时的默认格式
+    date-format: yyyy-MM-dd HH:mm:ss
+  # Servlet文件上传配置
+  servlet:
+    multipart:
+      # 单个上传文件的最大大小限制
+      max-file-size: 10MB
+      # 整个上传请求的最大大小限制（含所有文件）
+      max-request-size: 10MB
+  # 数据源配置
+  datasource:
+    # 数据源类型
+    type: com.zaxxer.hikari.HikariDataSource
+    # JDBC驱动类
+    driver-class-name: com.p6spy.engine.spy.P6SpyDriver
+    # 数据库连接URL
+    url: jdbc:p6spy:mysql://${database.host}:${database.port}/${database.schema}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    # 数据库用户名（从环境变量或配置中心获取）
+    username: ${database.username}
+    # 数据库密码（从环境变量或配置中心获取）
+    password: ${database.password}
+    # 3. HikariCP 连接池专属配置
+    hikari:
+      # 连接池中允许的最大连接数
+      maximum-pool-size: 20
+      # 连接池中保持的最小空闲连接数
+      minimum-idle: 5
+      # 从连接池获取连接的最大等待时间（毫秒）。设置为 60000 (60秒)
+      connection-timeout: 60000
+      # 连接池中连接的最大空闲时间（毫秒）。设置为 300000 (5分钟)
+      idle-timeout: 300000
+      # 连接池中连接的最大生命周期（毫秒）。设置为 600000 (10分钟)，0 表示无限制
+      max-lifetime: 600000
+      # 自动提交模式，保持默认 true
+      auto-commit: true
+      # 连接池的名称，便于在日志中识别
+      pool-name: HikariPool
+      # 验证超时时间（秒），不建议设置太长
+      validation-timeout: 5000
+      # 空闲连接测试的间隔时间（毫秒）
+      leak-detection-threshold: 60000
+  # Redis缓存配置
+  data:
+    redis:
+      # Redis数据库索引
+      database: ${redis.database}
+      # Redis服务器地址
+      host: ${redis.host}
+      # Redis服务器端口
+      port: ${redis.port}
+      # Redis连接密码
+      password: ${redis.password}
+      # Lettuce连接池配置
+      lettuce:
+        pool:
+          # 连接池最大活跃连接数
+          max-active: 200
+          # 连接池最大空闲连接数
+          max-idle: 20
+          # 连接池最小空闲连接数
+          min-idle: 5
+          # 获取连接的最大等待时间
+          max-wait: 3000ms
+        # Lettuce客户端关闭超时时间
+        shutdown-timeout: 1000ms
+
+# MyBatis-Plus配置
+mybatis-plus:
+  # MyBatis核心配置
+  configuration:
+    # 日志实现类（使用SLF4J输出SQL日志）
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    # 枚举类型处理器
+    default-enum-type-handler: com.baomidou.mybatisplus.core.handlers.MybatisEnumTypeHandler
+  # MyBatis-Plus全局配置
+  global-config:
+    # 字段更新策略（0表示忽略判断，始终更新）
+    field-strategy: 0
+    # 数据库相关配置
+    db-config:
+      # 逻辑删除字段名
+      logic-delete-field: isDeleted
+      # 主键生成策略（分配ID）
+      id-type: assign_id
+
+# 日志配置
+logging:
+  pattern:
+    dateformat: yyyy-MM-dd HH:mm:ss
+  level:
+    com.security.backend: debug
