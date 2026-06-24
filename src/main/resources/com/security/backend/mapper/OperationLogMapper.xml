@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.security.backend.mapper.OperationLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.security.backend.domain.OperationLog">
+            <id property="id" column="id" jdbcType="BIGINT"/>
+            <result property="module" column="module" jdbcType="VARCHAR"/>
+            <result property="description" column="description" jdbcType="VARCHAR"/>
+            <result property="requestUrl" column="request_url" jdbcType="VARCHAR"/>
+            <result property="requestMethod" column="request_method" jdbcType="VARCHAR"/>
+            <result property="requestParams" column="request_params" jdbcType="VARCHAR"/>
+            <result property="requestBody" column="request_body" jdbcType="VARCHAR"/>
+            <result property="responseBody" column="response_body" jdbcType="VARCHAR"/>
+            <result property="userId" column="user_id" jdbcType="BIGINT"/>
+            <result property="username" column="username" jdbcType="VARCHAR"/>
+            <result property="ipv4" column="ipv4" jdbcType="VARCHAR"/>
+            <result property="ipv6" column="ipv6" jdbcType="VARCHAR"/>
+            <result property="operationTime" column="operation_time" jdbcType="TIMESTAMP"/>
+            <result property="executionTime" column="execution_time" jdbcType="BIGINT"/>
+            <result property="status" column="status" jdbcType="TINYINT"/>
+            <result property="errorMsg" column="error_msg" jdbcType="VARCHAR"/>
+            <result property="httpStatus" column="http_status" jdbcType="INTEGER"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,module,description,request_url,request_method,request_params,
+        request_body,response_body,user_id,username,ipv4,
+        ipv6,operation_time,execution_time,status,error_msg,
+        http_status
+    </sql>
+</mapper>
