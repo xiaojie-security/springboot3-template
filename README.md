@@ -305,6 +305,65 @@
 - 缺少统一异常处理
 - 缺少关键操作审计日志
 
+## 最终流程图
+
+下面这张图只保留开发者最关心的主链路，并把“未开启加密”和“开启加密”拆成两条路线：
+
+```mermaid
+flowchart TD
+    A["HTTP 请求进入 Undertow"] --> B["RequestCachingFilter"]
+    B --> C["ResolveTokenFilter"]
+    C --> D["TokenAuthenticationFilter"]
+    D --> E["SystemMaintenanceInterceptor"]
+    E --> F["TimestampInterceptor"]
+    F --> G["NonceInterceptor"]
+    G --> H{"是否开启请求加密"}
+
+    H -- 否 --> I["HttpMessageConverter 直接绑定 DTO"]
+    H -- 是 --> J["EncryptRequestBodyAdvice 解密请求体"]
+    J --> K["HttpMessageConverter 绑定解密后的 DTO"]
+
+    I --> L["OperationLogAspect"]
+    K --> L
+    L --> M["Controller / Service / Mapper"]
+    M --> N["MyBatis-Plus"]
+    N --> O["P6SpyDriver"]
+    O --> P["HikariDataSource"]
+    P --> Q["MySQL"]
+    Q --> R["返回业务结果"]
+
+    R --> S{"是否开启响应加密"}
+    S -- 否 --> T["ResultResponseBodyAdvice 统一包装"]
+    S -- 是 --> U["EncryptResponseBodyAdvice 加密响应体"]
+    U --> T
+    T --> V["ContextClearInterceptor 清理上下文"]
+    V --> W["HTTP 响应返回客户端"]
+```
+
+### 未开启加密时
+
+作用：
+
+- 请求体直接做参数绑定
+- 响应体直接做统一包装
+
+解决的问题：
+
+- 保持普通接口链路最简单
+- 不引入额外加解密处理成本
+
+### 开启加密时
+
+作用：
+
+- 请求进入 Controller 前先解密
+- 响应返回客户端前再加密
+
+解决的问题：
+
+- 保护请求报文和响应报文中的敏感数据
+- 让业务层始终面对解密后的 DTO，而不是手工处理密文
+
 ## 适合继续扩展的方向
 
 在当前模板基础上，后续业务开发通常直接扩展这些位置：
