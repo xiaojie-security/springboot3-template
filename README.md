@@ -2,274 +2,358 @@
 
 ## 1. 项目总览
 
-当前项目是一个基于 Spring Boot 3、Spring Security、MyBatis-Plus、Redis 的后端模板，重点增强了以下几类能力：
+当前项目是一个基于 Spring Boot 3、Spring Security、Spring MVC、MyBatis-Plus、Redis、P6Spy 的后端模板，重点增强了以下几类能力：
 
-- JWT 认证与无状态安全链路
+- Undertow 作为嵌入式 Servlet 容器
+- Spring Security 无状态认证链路
 - 基于 RSA + AES-GCM 的请求解密与响应加密
-- 请求上下文与加密上下文透传
-- 基于系统配置的动态开关能力
-- 防重放校验、操作日志、统一返回与全局异常处理
-- 针对请求体重复读取问题的缓存包装能力
+- 请求体重复读取包装
+- MVC 拦截器防重放校验
+- ThreadLocal 上下文与线程池上下文透传
+- MyBatis-Plus + P6Spy SQL 打印与慢 SQL 监控
+- 操作日志、统一返回与全局异常处理
 
-## 2. 请求处理主链路
+## 2. 请求处理总链路
 
-### 2.1 总体时序
+### 2.1 详细请求时序图
 
 ```mermaid
 flowchart TD
-    A[Client Request] --> B[Undertow]
-    B --> C[Spring Security Filter Chain]
-    C --> D[ResolveTokenFilter]
-    D --> E[TokenAuthenticationFilter]
-    E --> F[DispatcherServlet]
-    F --> G[MVC Interceptors]
-    G --> H[RequestBodyAdvice 解密]
-    H --> I[HttpMessageConverter 参数绑定]
-    I --> J[Controller 方法]
-    J --> K[AOP 操作日志]
-    K --> L[ResponseBodyAdvice 响应加密/统一包装]
-    L --> M[HTTP Response]
+    A["Client Request"] --> B["Undertow Listener / Worker Thread"]
+    B --> C["Servlet Filter Chain"]
+    C --> C1["RequestCachingFilter"]
+    C1 --> C2["ResolveTokenFilter"]
+    C2 --> C3["TokenAuthenticationFilter"]
+    C3 --> D["DispatcherServlet"]
+    D --> E["MVC Interceptor preHandle"]
+    E --> E1["SystemMaintenanceInterceptor"]
+    E1 --> E2["TimestampInterceptor"]
+    E2 --> E3["NonceInterceptor"]
+    E3 --> F["Handler Mapping / Handler Adapter"]
+    F --> G["RequestBodyAdvice.supports"]
+    G --> H["EncryptRequestBodyAdvice.beforeBodyRead"]
+    H --> I["HttpMessageConverter 反序列化 DTO"]
+    I --> J["OperationLogAspect around before"]
+    J --> K["Controller 方法执行"]
+    K --> L["OperationLogAspect around after"]
+    L --> M["ResponseBodyAdvice.supports"]
+    M --> N["EncryptResponseBodyAdvice.beforeBodyWrite"]
+    N --> O["ResultResponseBodyAdvice.beforeBodyWrite"]
+    O --> P["HttpMessageConverter 序列化响应"]
+    P --> Q["MVC Interceptor afterCompletion"]
+    Q --> Q1["ContextClearInterceptor"]
+    Q1 --> R["HTTP Response"]
 ```
 
 ### 2.2 关键结论
 
-- Undertow 负责承载 Servlet 请求，但不是当前项目里“请求体被提前读空”的主要原因。
-- 真正会消费请求体的关键阶段是 Spring MVC 的 `@RequestBody` 参数解析阶段，以及 `RequestBodyAdvice`。
-- 只要请求经过 `RequestCachingFilter` 包装，后续再次读取 `HttpServletRequest` 的原始请求体时，通常不会因为前面已消费而直接变成空流。
-- 即便 AOP 发生在 `EncryptRequestBodyAdvice` 之后，AOP 再次从 `HttpServletRequest` 读取到的仍然是“原始请求体缓存”，不是 `RequestBodyAdvice` 解密后的明文对象。
+- Undertow 负责承载请求并把请求交给 Servlet 体系，但不是当前项目里“请求体为什么后续读空”的核心原因。
+- 真正消费请求体的是后续应用链路里的 `RequestCachingFilter`、`RequestBodyAdvice` 和 `HttpMessageConverter`。
+- 当前项目最早主动读取原始请求体的是 `RequestCachingFilter`，它会把原始 body 缓存下来，供后续重复读取。
+- `EncryptRequestBodyAdvice` 发生在 Controller 调用之前，因此 Controller 入参是解密后的 DTO。
+- AOP 发生在参数绑定之后，但 AOP 再读取 `HttpServletRequest` 时，读到的是“原始缓存请求体”，不是解密后的 DTO 明文。
 
-## 3. Security 过滤器链
+## 3. 过滤器链
 
-### 3.1 当前链路中的主要过滤器
+### 3.1 当前过滤器识别图
 
-根据 `SecurityConfiguration`，当前项目的主要安全过滤器职责如下：
+```mermaid
+flowchart LR
+    A["Undertow"] --> B["Spring Security Filter Chain"]
+    B --> F1["RequestCachingFilter"]
+    F1 --> F2["ResolveTokenFilter"]
+    F2 --> F3["TokenAuthenticationFilter"]
+    F3 --> C["DispatcherServlet"]
+```
 
-- `RequestCachingFilter`
-  作用：在请求进入后续 Spring Security / MVC 链路前，先把原始请求体读取并缓存到内存中。
-- `ResolveTokenFilter`
-  作用：从请求头中提取 Access Token，去掉前缀，写入 request attribute，供后续过滤器使用。
-- `TokenAuthenticationFilter`
-  作用：校验 JWT、加载权限、建立 `SecurityContext`，并在 finally 中清理安全上下文与自定义上下文。
+### 3.2 RequestCachingFilter
 
-### 3.2 过滤器执行逻辑
+位置：
 
-#### RequestCachingFilter
+- 在 `SecurityConfiguration` 中通过 `addFilterBefore(requestCachingFilter(), UsernamePasswordAuthenticationFilter.class)` 注册
+- 它位于你自定义 token 过滤器之前
 
-核心职责：
+职责：
 
-- 把 `HttpServletRequest` 包装为 `RepeatableRequestWrapper`
-- 在 wrapper 构造时一次性读取 `request.getInputStream()` 到 `byte[]`
-- 后续每次 `getInputStream()` / `getReader()` 都从缓存字节数组回放
+1. 将原始 `HttpServletRequest` 包装为 `RepeatableRequestWrapper`
+2. 在 wrapper 构造时调用原始 `request.getInputStream()` 一次性读取 body 到 `byte[]`
+3. 后续所有 `getInputStream()` / `getReader()` 调用都改为读取内存副本
 
-边界说明：
+效果：
 
-- 它解决的是“原始请求体重复读取”问题。
-- 它不负责回写解密后的明文请求体。
-- 它只对经过该过滤器之后的链路有效。
+- 解决“原始请求体只能读取一次”的问题
+- 让后续 Filter、MVC、AOP、工具类再次读取 `HttpServletRequest` 时不直接变空流
 
-#### ResolveTokenFilter
+边界：
 
-执行步骤：
+- 它缓存的是“原始请求体”，不是解密后的明文
+- 它对经过该过滤器之后的链路有效
+- 若存在比它更早的全局 Servlet Filter 先读 body，则它无法兜底
 
-1. 从 `security.access.header` 指定的请求头取值
+### 3.3 ResolveTokenFilter
+
+职责：
+
+1. 从 `security.access.header` 指定请求头中取 token
 2. 去除 `security.access.prefix`
 3. trim 后写入 request attribute
-4. 不做真正认证，只做标准化传递
+4. 不做认证，只做标准化传递
 
-#### TokenAuthenticationFilter
+输出：
 
-执行步骤：
+- 规范化 token 放在 request attribute 中，供 `TokenAuthenticationFilter` 使用
 
-1. 从 request attribute 中取标准化 token
-2. 使用 `JwtTokenHandler` 解析用户名与用户 ID
-3. 校验 token 是否过期
-4. 从 Redis 获取权限集合
-5. 构建 `UsernamePasswordAuthenticationToken`
+### 3.4 TokenAuthenticationFilter
+
+职责：
+
+1. 从 request attribute 中取规范化 token
+2. 用 `JwtTokenHandler` 解析用户名和用户 ID
+3. 校验 token 过期时间
+4. 从 Redis 查询权限列表
+5. 构造 `UsernamePasswordAuthenticationToken`
 6. 写入 `SecurityContextHolder`
-7. 放行到后续链路
-8. finally 中清理 `SecurityContextHolder` 和 `ContextHolder`
+7. finally 中清理 `ContextHolder` 和 `SecurityContextHolder`
+
+作用：
+
+- 这是当前项目安全链真正建立登录态和权限信息的地方
 
 ## 4. MVC 拦截器链
 
-### 4.1 注册顺序
+### 4.1 当前拦截器顺序
 
-`WebMvcConfiguration` 中的 MVC 拦截器顺序如下：
+`WebMvcConfiguration` 中注册顺序如下：
 
 1. `SystemMaintenanceInterceptor`，`order = -1`
 2. `TimestampInterceptor`，`order = 1`
 3. `NonceInterceptor`，`order = 2`
 4. `ContextClearInterceptor`，`order = Integer.MAX_VALUE`
 
-### 4.2 各拦截器职责
+### 4.2 拦截器识别图
+
+```mermaid
+flowchart LR
+    A["DispatcherServlet"] --> B1["SystemMaintenanceInterceptor"]
+    B1 --> B2["TimestampInterceptor"]
+    B2 --> B3["NonceInterceptor"]
+    B3 --> C["Controller Handler"]
+    C --> D["ContextClearInterceptor afterCompletion"]
+```
+
+### 4.3 各拦截器职责
 
 #### SystemMaintenanceInterceptor
 
-- 读取系统配置 `SYSTEM_MAINTENANCE`
-- 若开启维护模式，则直接拒绝访问
+- 读取 `SysConfigHandler.enableSystemMaintenance()`
+- 若开启维护模式，直接拒绝访问
 
 #### TimestampInterceptor
 
 - 读取请求头 `X-Timestamp`
-- 获取允许的时间偏差配置
-- 校验当前时间与请求时间戳差值
-- 用于防止超时重放请求
+- 校验时间戳与当前服务器时间差
+- 用于限制超时重放请求
 
 #### NonceInterceptor
 
 - 读取请求头 `X-Nonce`
-- 获取 nonce 过期时间配置
-- 使用 `CacheService.setIfAbsent` 写入缓存
-- 若写入失败，则说明 nonce 已被使用，判定为重复请求或重放攻击
+- 用 `CacheService.setIfAbsent` 写入缓存
+- 若写入失败，则认为 nonce 已被占用，判定为重复提交或重放攻击
 
 #### ContextClearInterceptor
 
-- 在请求完成后统一清理 `ContextHolder`
-- 防止线程复用导致 ThreadLocal 污染
+- 在 `afterCompletion` 中统一清理 `ContextHolder`
+- 防止容器线程复用导致 ThreadLocal 串数据
 
-## 5. 请求加解密机制
+## 5. 请求解密、响应加密、统一返回
 
-### 5.1 请求解密
+### 5.1 RequestBodyAdvice 链路
 
-请求解密由 `EncryptRequestBodyAdvice` 完成，它属于 Spring MVC 的 `RequestBodyAdvice` 链路。
+请求进入 Controller 前，Spring MVC 会先处理 `@RequestBody` 绑定。当前项目在这条链路上挂了 `EncryptRequestBodyAdvice`。
 
-执行步骤：
+详细时序：
 
-1. 判断系统配置是否开启传输加密
-2. 判断方法或类上是否标记 `@IgnoreEncrypt`
-3. 在 `beforeBodyRead` 中读取整个请求体
-4. 将请求体解析为 `EncryptBody`
-5. 使用 RSA 私钥解出 AES 密钥
-6. 将 AES 密钥写入 `EncryptContext`
-7. 使用 AES-GCM 解密数据体
-8. 构造新的 `HttpInputMessage`，把明文交给后续 `HttpMessageConverter`
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Filter as Filters
+    participant MVC as DispatcherServlet/MVC
+    participant ReqAdv as EncryptRequestBodyAdvice
+    participant Conv as HttpMessageConverter
+    participant AOP as OperationLogAspect
+    participant Ctrl as Controller
+
+    Client->>Filter: HTTP Request
+    Filter->>MVC: wrapped HttpServletRequest
+    MVC->>ReqAdv: supports(...)
+    ReqAdv->>ReqAdv: beforeBodyRead()
+    ReqAdv->>ReqAdv: 读取原始密文 body
+    ReqAdv->>ReqAdv: RSA 解密 AES 密钥
+    ReqAdv->>ReqAdv: AES 解密业务报文
+    ReqAdv-->>MVC: 返回明文 HttpInputMessage
+    MVC->>Conv: 反序列化 DTO
+    Conv-->>MVC: 解密后的业务对象
+    MVC->>AOP: 进入 Around
+    AOP->>Ctrl: 调用 Controller
+```
+
+### 5.2 EncryptRequestBodyAdvice
+
+职责：
+
+1. 判断是否开启数据传输加密
+2. 判断是否标记 `@IgnoreEncrypt`
+3. 在 `beforeBodyRead` 中读取请求体
+4. 解析为 `EncryptBody`
+5. 用 RSA 私钥解出当前请求 AES 密钥
+6. 写入 `EncryptContext`
+7. 用 AES-GCM 解出业务明文
+8. 构造新的 `HttpInputMessage` 交给 `HttpMessageConverter`
 
 关键结论：
 
-- Controller 拿到的 DTO 是解密后的业务对象。
-- `HttpServletRequest` 本身不会被替换成“明文 request body”。
-- 因此后续从 `HttpServletRequest` 读取出来的仍然是原始密文请求体缓存，而不是明文。
+- Controller 最终拿到的是解密后的 DTO
+- `HttpServletRequest` 本身并不会被替换成“明文 body request”
+- 因此后面再从 `HttpServletRequest` 读取，得到的是原始缓存请求体，不是解密后的 DTO 明文
 
-### 5.2 响应加密
+### 5.3 ResponseBodyAdvice 链路
 
-响应加密由 `EncryptResponseBodyAdvice` 完成。
+当前项目挂了两个响应 Advice：
 
-执行步骤：
+1. `EncryptResponseBodyAdvice`
+2. `ResultResponseBodyAdvice`
 
-1. 判断系统配置是否开启传输加密
-2. 判断方法或类上是否标记 `@IgnoreEncrypt`
-3. 从 `EncryptContext` 中读取当前请求 AES 密钥
-4. 将响应对象转为字符串
-5. 使用 AES-GCM 加密响应数据
+大致顺序：
+
+- 先判断是否需要响应加密
+- 若需要，使用 `EncryptContext` 中的 AES 密钥加密响应数据
+- 再由 `ResultResponseBodyAdvice` 包装成统一响应结构
+
+### 5.4 EncryptResponseBodyAdvice
+
+职责：
+
+1. 判断是否开启数据传输加密
+2. 判断是否标记 `@IgnoreEncrypt`
+3. 从 `EncryptContext` 取当前请求 AES 密钥
+4. 将响应对象序列化为字符串
+5. 使用 AES-GCM 加密
 6. 返回 `EncryptResult`
 
-### 5.3 统一返回包装
+### 5.5 ResultResponseBodyAdvice
 
-`ResultResponseBodyAdvice` 在响应链路上晚于 `EncryptResponseBodyAdvice` 执行，职责是：
+职责：
 
-- 普通对象包装成 `Result.success(data)`
-- `EncryptResult` 包装成包含 `data + iv` 的统一结构
-- `String` 响应转 JSON 字符串返回
+- 普通对象包装为 `Result.success(data)`
+- `EncryptResult` 包装成包含 `data` 和 `iv` 的统一结构
+- `String` 响应转为 JSON 字符串
 
 ## 6. AOP 与请求体读取关系
 
-### 6.1 执行时机
+### 6.1 AOP 位置
 
-对于 Controller 方法上的切面，AOP 的执行时机晚于 `EncryptRequestBodyAdvice` 和 `HttpMessageConverter` 参数绑定。
+`OperationLogAspect` 拦截的是标记了 `@OperationLog` 的 Controller 方法。
 
-也就是说：
+时机上它发生在：
 
-- AOP 发生时，Controller 入参已经完成解密和绑定
-- 但 `HttpServletRequest` 上保留的仍然是原始请求体语义
+- `RequestCachingFilter` 之后
+- `EncryptRequestBodyAdvice` 之后
+- `HttpMessageConverter` 参数绑定之后
+- Controller 方法体执行前后
 
-### 6.2 OperationLogAspect 当前行为
+### 6.2 AOP 在链路中的精确位置
 
-`OperationLogAspect` 当前会做三类采集：
+```mermaid
+flowchart TD
+    A["RequestCachingFilter 缓存原始 body"] --> B["EncryptRequestBodyAdvice 解密原始 body"]
+    B --> C["HttpMessageConverter 绑定 DTO"]
+    C --> D["OperationLogAspect around before"]
+    D --> E["Controller 方法执行"]
+    E --> F["OperationLogAspect around after"]
+    F --> G["EncryptResponseBodyAdvice"]
+    G --> H["ResultResponseBodyAdvice"]
+```
 
-- URL、方法、IP、请求参数
-- 通过 `request.getReader()` 读取请求体
-- 如果请求体取不到，则回退到 `joinPoint.getArgs()` 的业务参数序列化
+### 6.3 当前 OperationLogAspect 机制
 
-因此要注意：
+当前切面会做这些事：
 
-- 如果关注的是“原始密文请求体”，可以从 `HttpServletRequest` 读取。
-- 如果关注的是“解密后的业务明文”，优先使用 `joinPoint.getArgs()` 或者在 `RequestBodyAdvice` 中额外透传明文。
+- 读取 `@OperationLog` 注解元数据
+- 采集 URL、方法、IP
+- 使用 `joinPoint.getArgs()` 记录请求参数
+- 从 `ContextHolder.getUserContext()` 获取用户信息
+- 记录返回结果
+- 异步写入 `operation_log`
 
-## 7. RequestCachingFilter 的适用边界
+结论：
 
-### 7.1 能解决的问题
+- 当前切面主要依赖方法参数而不是再次从 `request` 读 body
+- 若需要再次从 `request` 读原始请求体，`RequestCachingFilter` 能支撑这种重复读取
+- 若要拿解密后的业务明文，优先使用 `joinPoint.getArgs()`，而不是 `HttpServletRequest`
 
-当前实现可以较好解决：
+## 7. RequestCachingFilter 的边界
 
-- AOP、过滤器、工具类多次读取原始请求体
-- `@RequestBody` 消费后再次读取变空流的问题
+### 7.1 它能保证什么
 
-### 7.2 不能解决的问题
+对当前项目主链路来说，它可以保证：
 
-当前实现不能直接解决：
+- `EncryptRequestBodyAdvice` 读取过原始 body 后
+- 后续其他代码再次读取 `HttpServletRequest`
+- 不会因为“单次流已消费”直接拿到空流
 
-- 把 `RequestBodyAdvice` 解密后的明文重新写回 `HttpServletRequest`
-- 大文件 / `multipart/form-data` 场景下的内存占用问题
-- 在它之前就已经读取过请求体的更早层过滤器问题
+### 7.2 它不能保证什么
 
-### 7.3 当前项目里的结论
+它不能保证：
 
-针对当前项目主链路：
+- `HttpServletRequest` 里自动变成解密后的明文 body
+- 大文件 / `multipart` 下的低内存占用
+- 在它之前已经有其他全局 Filter 读过 body 的情况
 
-- 后续代码再次读取 `HttpServletRequest` 时，大概率可以继续拿到原始请求体
-- 但拿到的是原始缓存体，不是解密后的 DTO 明文
+## 8. ThreadLocal 上下文机制
 
-## 8. 上下文机制
-
-### 8.1 ContextHolder 结构
+### 8.1 ContextHolder
 
 `ContextHolder` 统一持有两类上下文：
 
 - `UserContext`
 - `EncryptContext`
 
-二者内部都基于 `ThreadLocal` 保存当前线程相关数据。
-
 ### 8.2 UserContext
 
-`UserContext` 保存：
+保存：
 
 - `userId`
 - `userName`
 - `userToken`
 
-适用场景：
+用途：
 
-- 业务日志记录
-- 审计信息写入
-- 子线程任务传递用户身份信息
+- 操作日志
+- 业务身份透传
+- 异步线程上下文补齐
 
 ### 8.3 EncryptContext
 
-`EncryptContext` 保存：
+保存：
 
 - 当前请求解出的 AES 密钥
 
-适用场景：
+用途：
 
-- 请求解密后把 AES 密钥交给响应加密复用
+- 请求解密与响应加密之间复用同一把对称密钥
 
 ### 8.4 清理机制
 
 当前项目有两层清理：
 
-- `TokenAuthenticationFilter` 的 finally 清理 `ContextHolder` 和 `SecurityContextHolder`
-- `ContextClearInterceptor.afterCompletion` 兜底清理 `ContextHolder`
+- `TokenAuthenticationFilter` finally 清理
+- `ContextClearInterceptor.afterCompletion` 兜底清理
 
-设计目的：
-
-- 保证线程池或容器线程复用时不会串数据
-- 降低请求上下文泄漏风险
-
-## 9. 线程池上下文透传机制
+## 9. 线程池上下文透传
 
 ### 9.1 ContextCopyingDecorator
 
-`ContextCopyingDecorator` 用于把主线程上下文拷贝到异步线程。当前会透传：
+透传内容：
 
 - `RequestAttributes`
 - `SecurityContext`
@@ -278,74 +362,143 @@ flowchart TD
 
 ### 9.2 执行流程
 
-1. 在主线程捕获当前上下文快照
-2. 包装原始 `Runnable`
-3. 在子线程执行前设置上下文
+1. 主线程抓取上下文快照
+2. 包装异步任务
+3. 子线程执行前恢复上下文
 4. 执行业务逻辑
-5. finally 中清理请求属性和自定义上下文
-
-### 9.3 价值
-
-它解决的是：
-
-- 异步线程里拿不到登录态
-- 异步线程里拿不到加密上下文
-- MDC / RequestAttributes 丢失导致链路日志不完整
+5. finally 清理
 
 ## 10. 系统配置与缓存机制
 
 ### 10.1 SysConfigHandler
 
-系统配置统一由 `SysConfigHandler` 读取，对外提供布尔开关和数值配置访问能力，例如：
+统一读取系统配置，对外提供：
 
 - 是否开启数据传输加密
-- 是否开启防重放
 - 是否开启系统维护
+- 是否开启防重放
 - token 过期时间
 - nonce 过期时间
+- 操作日志开关
 
-### 10.2 缓存读取逻辑
+### 10.2 ConfigCacheLoader
 
-读取流程：
+应用启动后执行：
 
-1. 根据 `SysConfigKey` 构造缓存 key
-2. 使用 `CacheService.getOrLoad`
-3. 缓存命中直接返回
-4. 缓存未命中则走数据库查询，并写回缓存
+- 主动把已启用的系统配置加载进缓存
 
-### 10.3 启动预热
+### 10.3 更新配置后的刷新机制
 
-`ConfigCacheLoader` 在应用启动后会主动把启用中的系统配置加载进缓存。
+`SysConfigServiceImpl` 在更新配置值和状态后会调用：
 
-### 10.4 配置变更
+- `SysConfigHandler.refreshConfigCache`
 
-`SysConfigServiceImpl` 在更新配置值或状态后会调用 `SysConfigHandler.refreshConfigCache`，保证缓存与数据库同步。
+保证缓存与数据库一致。
 
-## 11. 当前提交拆分建议
+## 11. SQL 日志与慢 SQL 机制
 
-为了让 Git 历史更可追溯，建议按以下边界拆分：
+### 11.1 数据库代理链路
 
-1. 基础后端模板与工程骨架
-2. 安全认证、上下文与 MVC/Security 链路
-3. 请求体缓存与重复读取支持
-4. 加解密链路与统一返回
-5. 系统配置、缓存与操作日志
-6. 架构文档与机制说明
+当前项目使用 `P6SpyDriver` 代理 JDBC 链路：
+
+```mermaid
+flowchart LR
+    A["Service / Mapper 调用"] --> B["MyBatis-Plus"]
+    B --> C["JDBC"]
+    C --> D["P6SpyDriver"]
+    D --> E["HikariDataSource"]
+    E --> F["MySQL"]
+```
+
+### 11.2 当前接入方式
+
+在 `application.yml` 中：
+
+- `spring.datasource.driver-class-name = com.p6spy.engine.spy.P6SpyDriver`
+- `spring.datasource.url = jdbc:p6spy:mysql://...`
+
+这意味着：
+
+- 真实 JDBC 调用先进入 P6Spy 代理
+- 再由 P6Spy 转发给真实 MySQL 驱动
+
+### 11.3 spy.properties 机制
+
+`spy.properties` 里当前关键配置如下：
+
+- `modulelist=com.baomidou.mybatisplus.extension.p6spy.MybatisPlusLogFactory,com.p6spy.engine.outage.P6OutageFactory`
+- `logMessageFormat=com.security.backend.config.SqlLoggerConfiguration`
+- `appender=com.security.backend.config.SqlLoggerConfiguration`
+- `excludecategories=info,debug,result,commit,resultset`
+- `outagedetection=true`
+- `outagedetectioninterval=2`
+
+### 11.4 普通 SQL 打印机制
+
+普通 SQL 打印依赖：
+
+- `MybatisPlusLogFactory`
+- `SqlLoggerConfiguration`
+
+执行逻辑：
+
+1. MyBatis-Plus 发起 SQL
+2. JDBC 调用进入 P6Spy
+3. `MybatisPlusLogFactory` 负责生成 SQL 日志事件
+4. P6Spy 调用 `SqlLoggerConfiguration.formatMessage(...)`
+5. 格式化后通过 `logText(...)` 写入日志系统
+
+当前 `SqlLoggerConfiguration` 行为：
+
+- 对 SQL 做空白压缩
+- 输出类似 `完整SQL：...`
+- 通过 `log.debug(...)` 打到 `com.security.backend` 日志体系
+
+### 11.5 慢 SQL 机制
+
+慢 SQL 依赖：
+
+- `P6OutageFactory`
+- `outagedetection=true`
+- `outagedetectioninterval=2`
+
+执行逻辑：
+
+1. P6Spy 记录每个 JDBC 执行耗时
+2. `P6OutageFactory` 监控执行时间
+3. 当 SQL 执行时间超过 2 秒时，认定为慢 SQL
+4. 慢 SQL 事件仍通过当前 appender/logger 体系输出
+
+### 11.6 为什么要同时看 application.yml 和 spy.properties
+
+因为当前 SQL 日志机制分成两层：
+
+- `application.yml`
+  决定是否通过 `P6SpyDriver` 进入代理链路
+- `spy.properties`
+  决定代理链路里的日志模块、慢 SQL 检测、日志格式和输出方式
+
+### 11.7 当前项目中的实际结论
+
+- 你现在不是 Spring Boot starter 自动装饰 DataSource 的模式
+- 你是 MyBatis-Plus 官方文档那种 `P6SpyDriver + spy.properties` 模式
+- 普通 SQL 和慢 SQL 都经过 P6Spy
+- 慢 SQL 阈值当前是 2 秒
 
 ## 12. 当前实现的关键判断
 
 ### 12.1 关于 Undertow
 
-- Undertow 不是当前请求体读取问题的核心矛盾。
-- 真正决定请求体是否还能再读的，是应用链路里有没有做包装缓存，以及 `@RequestBody` / `RequestBodyAdvice` 是否已经消费过 body。
+- Undertow 不是“请求体为什么后面是空”的根因
+- 它只是承载请求，真正决定 body 是否还能重读的是后续应用链路的包装与消费方式
 
 ### 12.2 关于 RequestCachingFilter
 
-- 对“原始请求体可重复读取”这一目标，它是有效的。
-- 对“让后续从 request 里直接拿到解密后的明文请求体”这一目标，它无效。
+- 对“原始请求体可重复读取”这个目标，它是有效的
+- 对“让 request 里直接变成解密后的明文 body”这个目标，它无效
 
-### 12.3 关于 AOP 读取请求体
+### 12.3 关于 AOP
 
-- AOP 发生在解密之后。
-- 但 AOP 如果继续读 `HttpServletRequest`，拿到的仍是原始缓存体。
-- 若要记录解密后的业务内容，推荐直接使用方法参数或在 `RequestBodyAdvice` 中额外透传明文。
+- AOP 在解密和参数绑定之后执行
+- AOP 里如果读取 `joinPoint.getArgs()`，拿到的是解密后的业务对象
+- AOP 里如果读取 `HttpServletRequest`，拿到的是原始缓存请求体
