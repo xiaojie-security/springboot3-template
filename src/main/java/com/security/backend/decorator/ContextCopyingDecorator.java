@@ -2,6 +2,7 @@ package com.security.backend.decorator;
 
 import com.security.backend.context.ContextHolder;
 import com.security.backend.context.EncryptContext;
+import com.security.backend.context.RequestContext;
 import com.security.backend.context.UserContext;
 import org.slf4j.MDC;
 import org.springframework.core.task.TaskDecorator;
@@ -24,6 +25,7 @@ public class ContextCopyingDecorator implements TaskDecorator {
         SecurityContext securityContext = SecurityContextHolder.getContext();
         EncryptContext encryptContext = ContextHolder.getEncryptContext();
         UserContext userContext = ContextHolder.getUserContext();
+        RequestContext requestContext = ContextHolder.getRequestContext();
 
         // 3. 返回包装后的 Runnable
         return () -> {
@@ -42,6 +44,9 @@ public class ContextCopyingDecorator implements TaskDecorator {
 
                 if (encryptContext != null) {
                     ContextHolder.setEncryptContext(encryptContext);
+                }
+                if (requestContext != null) {
+                    ContextHolder.setRequestContext(requestContext);
                 }
                 
                 runnable.run();

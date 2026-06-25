@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
 import java.util.Date;
 
+import com.security.backend.enums.ResultStatus;
 import com.security.backend.enums.Status;
 import lombok.Data;
 
@@ -99,7 +100,7 @@ public class OperationLog implements Serializable {
      * 1 成功 0 失败
      */
     @TableField(value = "status")
-    private Status status;
+    private ResultStatus status;
 
     /**
      * 错误信息

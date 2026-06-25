@@ -1,13 +1,11 @@
 package com.security.backend.config;
 
 import cn.hutool.core.collection.CollUtil;
-import com.security.backend.authentication.AuthenticationEntryPointImpl;
-import com.security.backend.filter.RequestCachingFilter;
-import com.security.backend.filter.ResolveTokenFilter;
-import com.security.backend.filter.TokenAuthenticationFilter;
+import com.security.backend.authentication.CustomAccessDeniedHandler;
+import com.security.backend.authentication.CustomAuthenticationEntryPoint;
+import com.security.backend.filter.*;
 import com.security.backend.handler.UserDetailsServiceHandler;
 import com.security.backend.properties.SecurityProperties;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -19,8 +17,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 
@@ -33,7 +31,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
  * </p>
  */
 @Configuration
-@EnableWebSecurity
+@EnableWebSecurity(debug = true)
 @EnableMethodSecurity
 public class SecurityConfiguration {
 
@@ -74,15 +72,17 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(AbstractHttpConfigurer::disable);
 
+        httpSecurity.addFilterBefore(contextAssemblyFilter(), UsernamePasswordAuthenticationFilter.class);
+        httpSecurity.addFilterBefore(tokenAuthenticationFilter(), ContextAssemblyFilter.class);
+        httpSecurity.addFilterBefore(resolveTokenFilter(), TokenAuthenticationFilter.class);
+        httpSecurity.addFilterAfter(requestCachingFilter(), CorsFilter.class);
+        httpSecurity.addFilterAfter(requestLegalFilter(), RequestCachingFilter.class);
 
-        httpSecurity.addFilterBefore(requestCachingFilter(),UsernamePasswordAuthenticationFilter.class);
-        httpSecurity.addFilterAfter(resolveTokenFilter(), RequestCachingFilter.class);
-        httpSecurity.addFilterAfter(tokenAuthenticationFilter(), ResolveTokenFilter.class);
 
         // 配置异常处理
         httpSecurity.exceptionHandling(httpSecurityExceptionHandlingConfigurer -> {
-            httpSecurityExceptionHandlingConfigurer.authenticationEntryPoint(new AuthenticationEntryPointImpl());
-            httpSecurityExceptionHandlingConfigurer.accessDeniedHandler(new AccessDeniedHandlerImpl());
+            httpSecurityExceptionHandlingConfigurer.authenticationEntryPoint(new CustomAuthenticationEntryPoint());
+            httpSecurityExceptionHandlingConfigurer.accessDeniedHandler(new CustomAccessDeniedHandler());
         });
         return httpSecurity.build();
     }
@@ -97,21 +97,13 @@ public class SecurityConfiguration {
         return new BCryptPasswordEncoder(8);
     }
 
-    /**
-     * 创建 token 认证过滤器。
-     *
-     * @return token 认证过滤器
-     */
+
     @Bean
     public TokenAuthenticationFilter tokenAuthenticationFilter() {
         return new TokenAuthenticationFilter();
     }
 
-    /**
-     * 创建 token 解析过滤器。
-     *
-     * @return token 解析过滤器
-     */
+
     @Bean
     public ResolveTokenFilter resolveTokenFilter() {
         return new ResolveTokenFilter(securityProperties());
@@ -120,6 +112,16 @@ public class SecurityConfiguration {
     @Bean
     public RequestCachingFilter requestCachingFilter() {
         return new RequestCachingFilter();
+    }
+
+    @Bean
+    public ContextAssemblyFilter contextAssemblyFilter() {
+        return new ContextAssemblyFilter();
+    }
+
+    @Bean
+    public RequestLegalFilter requestLegalFilter() {
+        return new RequestLegalFilter();
     }
 
 

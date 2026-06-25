@@ -12,15 +12,18 @@ import java.util.Objects;
 public enum Status {
 
     ENABLE(1, "启用"),
-    SUCCESS(1,"成功"),
-    FAIL(0,"失败"),
     DISABLE(0, "禁用");
 
-    /**
-     * 指定枚举值在数据库中存储的实际值
-     */
     @EnumValue
     private final Integer code;
     private final String desc;
 
+    public static Status fromCode(Integer code) {
+        for (Status status : Status.values()) {
+            if (status.getCode().equals(code)) {
+                return status;
+            }
+        }
+        return null;
+    }
 }

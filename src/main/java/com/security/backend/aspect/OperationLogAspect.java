@@ -4,10 +4,10 @@ import cn.hutool.json.JSONUtil;
 import com.security.backend.context.ContextHolder;
 import com.security.backend.context.UserContext;
 import com.security.backend.domain.OperationLog;
-import com.security.backend.enums.Status;
+import com.security.backend.enums.ResultStatus;
 import com.security.backend.handler.SysConfigHandler;
 import com.security.backend.service.OperationLogService;
-import com.security.backend.utils.IpUtils;
+import com.security.backend.utils.HttpServletUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -74,22 +74,22 @@ public class OperationLogAspect {
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attributes != null ? attributes.getRequest() : null;
 
+        HttpServletUtils requestUtils = new HttpServletUtils(request);
+
         try {
             // 1. 设置模块和描述
             logEntity.setModule(operationLog.module().getName());
             logEntity.setDescription(operationLog.description());
 
             // 2. 收集请求基本信息
-            if (request != null) {
-                logEntity.setRequestUrl(request.getRequestURL().toString());
-                logEntity.setRequestMethod(request.getMethod());
-                logEntity.setIpv4(IpUtils.getClientIpv4(request));
-                logEntity.setIpv6(IpUtils.getClientIpv6(request));
+            logEntity.setRequestUrl(request.getRequestURL().toString());
+            logEntity.setRequestMethod(request.getMethod());
+            logEntity.setIpv4(requestUtils.getIpv4());
+            logEntity.setIpv6(requestUtils.getIpv6());
 
-                // 3. 收集请求参数（URL参数）
-                if (operationLog.saveRequestParams()) {
-                    logEntity.setRequestParams(JSONUtil.toJsonStr(joinPoint.getArgs()));
-                }
+            // 3. 收集请求参数（URL参数）
+            if (operationLog.saveRequestParams()) {
+                logEntity.setRequestParams(JSONUtil.toJsonStr(joinPoint.getArgs()));
             }
 
 
@@ -108,7 +108,7 @@ public class OperationLogAspect {
             }
 
             // 9. 记录成功状态
-            logEntity.setStatus(Status.SUCCESS);
+            logEntity.setStatus(ResultStatus.SUCCESS);
             logEntity.setHttpStatus(200);
             logEntity.setExecutionTime(System.currentTimeMillis() - startTime);
 
@@ -116,7 +116,7 @@ public class OperationLogAspect {
 
         } catch (Exception e) {
             // 记录失败状态
-            logEntity.setStatus(Status.FAIL);
+            logEntity.setStatus(ResultStatus.FAIL);
             logEntity.setErrorMsg(e.getMessage());
             logEntity.setHttpStatus(500);
             logEntity.setExecutionTime(System.currentTimeMillis() - startTime);

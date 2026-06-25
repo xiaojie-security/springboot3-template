@@ -30,7 +30,7 @@ public class JwtTokenHandler {
     public String createAccessToken(Map<String, Object> payload , String secret) {
         JwtBuilder builder = Jwts.builder();
         builder.claims(payload);
-        builder.expiration(getExpirationTime(sysConfigHandler.queryTokenExpireMinutes()));  // 设置过期时
+        builder.expiration(getExpirationTime(sysConfigHandler.queryTokenExpireSeconds()));  // 设置过期时
         builder.signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)));
         builder.issuedAt(new Date());
         return builder.compact();
@@ -53,7 +53,7 @@ public class JwtTokenHandler {
      */
     public String createRefreshToken(String secret) {
         JwtBuilder builder = Jwts.builder();
-        builder.expiration(getExpirationTime(sysConfigHandler.queryTokenExpireMinutes() * 3));  // 设置过期时
+        builder.expiration(getExpirationTime(sysConfigHandler.queryTokenExpireSeconds() * 3));  // 设置过期时
         builder.signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)));
         builder.issuedAt(new Date());
         return builder.compact();
@@ -87,6 +87,14 @@ public class JwtTokenHandler {
         Claims payload = claimsJws.getPayload();
 
         return payload.get(key,clazz);
+    }
+
+    public String getUsername(String token, String secret) {
+        return get(token,secret,USERNAME_KEY,String.class);
+    }
+
+    public <T> T getUserId(String token, String secret, Class<T> clazz) {
+        return get(token,secret,USERID_KEY,clazz);
     }
 
     /**

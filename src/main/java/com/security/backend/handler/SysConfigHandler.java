@@ -122,8 +122,8 @@ public class SysConfigHandler {
      *
      * @return 过期分钟数
      */
-    public Long queryTokenExpireMinutes() {
-        SysConfig config = queryConfig(SysConfigKey.TOKEN_EXPIRE_MINUTES);
+    public Long queryTokenExpireSeconds() {
+        SysConfig config = queryConfig(SysConfigKey.TOKEN_EXPIRE_SECONDS);
         if (ObjUtil.isEmpty(config) || !NumberUtil.isLong(config.getConfigValue())) {
             return null;
         }

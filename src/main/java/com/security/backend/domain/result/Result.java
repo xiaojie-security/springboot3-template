@@ -111,6 +111,14 @@ public final class Result {
         return new Result(500, msg, null, iv);
     }
 
+    public static Result error(int code, String msg, String iv) {
+        return new Result(code, msg, null, iv);
+    }
+
+    public static Result error(int code, String msg) {
+        return new Result(code, msg, null, null);
+    }
+
     /**
      * 创建自定义响应结果（无数据和IV）
      * <p>适用于需要自定义状态码但无需返回数据和加密的场景</p>

@@ -16,6 +16,11 @@ public class ContextHolder {
     private static EncryptContext ENCRYPT_CONTEXT = new EncryptContext();
 
     /**
+     * 请求上下文。
+     */
+    private static RequestContext REQUEST_CONTEXT = new RequestContext();
+
+    /**
      * 获取用户上下文。
      *
      * @return 用户上下文
@@ -52,6 +57,23 @@ public class ContextHolder {
     }
 
 
+    /**
+     * 设置请求上下文。
+     *
+     * @param requestContext 请求上下文
+     */
+    public static void setRequestContext(RequestContext requestContext) {
+        REQUEST_CONTEXT = requestContext;
+    }
+
+    /**
+     * 获取请求上下文。
+     *
+     * @return 请求上下文
+     */
+    public static RequestContext getRequestContext() {
+        return REQUEST_CONTEXT;
+    }
 
     /**
      * 清理当前线程中的所有上下文。
@@ -59,5 +81,6 @@ public class ContextHolder {
     public static void clear() {
         USER_CONTEXT.clear();
         ENCRYPT_CONTEXT.clear();
+        REQUEST_CONTEXT.clear();
     }
 }

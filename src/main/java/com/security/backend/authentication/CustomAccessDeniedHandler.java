@@ -1,7 +1,7 @@
 package com.security.backend.authentication;
 
 import cn.hutool.http.HttpStatus;
-import com.security.backend.utils.HttpUtils;
+import com.security.backend.utils.HttpServletUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,7 +13,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
  *  配置用户请求被拒绝的逻辑
  **/
 @Slf4j
-public class AccessDeniedHandlerImpl implements AccessDeniedHandler {
+public class CustomAccessDeniedHandler implements AccessDeniedHandler {
     /**
      *
      * @param request 请求体
@@ -23,6 +23,6 @@ public class AccessDeniedHandlerImpl implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws ServletException {
         log.error("AccessDeniedHandlerImpl.handle 拒绝访问 请求路径={} 错误信息={}", request.getRequestURI(), accessDeniedException.getMessage());
-        HttpUtils.writeResponseBody(response, HttpStatus.HTTP_FORBIDDEN, "Access Denied 暂无权限访问");
+        new HttpServletUtils(response).writeResponseBody(HttpStatus.HTTP_FORBIDDEN, "Access Denied 暂无权限访问");
     }
 }

@@ -9,10 +9,17 @@ public class RedisKeysHandler {
         return "auth:perms:" + userId;
     }
 
-    public static String getAccessToken() {
-        return "auth:access:token";
+    public static String getDeviceToken(Long userId, String deviceId) {
+        return "login:device:" + userId + ":" + deviceId;
     }
 
+    public static String getUserDevices(Long userId) {
+        return "login:devices:" + userId;
+    }
+
+    public static String getLoginHistory(Long userId) {
+        return "login:history:" + userId;
+    }
     public static String getSystemConfig(String configKey) {
         return "system:config:" + configKey;
     }
