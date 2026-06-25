@@ -4,7 +4,6 @@ import cn.hutool.core.collection.CollUtil;
 import com.security.backend.authentication.CustomAccessDeniedHandler;
 import com.security.backend.authentication.CustomAuthenticationEntryPoint;
 import com.security.backend.filter.*;
-import com.security.backend.handler.UserDetailsServiceHandler;
 import com.security.backend.properties.SecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -124,9 +123,4 @@ public class SecurityConfiguration {
         return new RequestLegalFilter();
     }
 
-
-    @Bean
-    public UserDetailsService userDetailsService(){
-        return new UserDetailsServiceHandler();
-    }
 }

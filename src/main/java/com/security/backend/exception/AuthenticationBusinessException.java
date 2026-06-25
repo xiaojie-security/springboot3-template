@@ -18,6 +18,12 @@ public class AuthenticationBusinessException extends BaseException {
             new AuthenticationBusinessException("登录状态失效，请重新登录");
 
     /**
+     * 认证方式异常
+     */
+    public static final AuthenticationBusinessException AUTHENTICATION_METHOD_ABNORMAL =
+            new AuthenticationBusinessException("认证方式异常");
+
+    /**
      * 创建认证异常。
      *
      * @param message 异常消息
