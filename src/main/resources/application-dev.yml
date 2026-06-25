@@ -11,21 +11,24 @@ redis:
   port: 6379
   password: redis
 
-security:
-  access:
-    secret: access-secret
-    prefix: Bearer
-    header: Authorization
-  refresh:
-    secret: refresh-secret
-    prefix: Bearer
-    header: Refresh-Authorization
-  exclude-url:
-    - /encrypt/public-key
-  rsa-private-key: MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMzMdPPulVYa8nt7+r4Up+kZcjV/+NwjsdtReZsKegghuN5TjYppB6nUyTKXSMkI6MwXHPeERFhILcJhPY83mHnot0AWUt6wJmH9rGCunn3NkEUj2xLIdjzlIyz+Lkhgd1djrhqq1FakWJJI2P1phxT+jA/P0343HdtxY63dr4/bAgMBAAECgYAeIF178gwpycutz+5yE8Z3ix9lMK7CbhsgcNB7YYPTZRKK3K5PlA+6iJYS88o94ypLti1ern2soZbe/JWlAb/+EM7T/gfJgAavcSRWnPFycZvshKEA/fQA4sBfkCYzek1WIoIutGadO4/e4gk6jqNxR2oaby6ORvsd+l2NHeZqQQJBANeaKeYTHpYVgE/Qusz7mOmnsNdadhFpahefkSpXbyUmpOUewjsqOF6SZ6Pj6ZarzoVneSapkFM8geW+ODMW5LECQQDzLBPPqyFZItQflidBNkk8raApqIY5i9qkjUQdMCtFUDmx1iRf37/uAoDpmxQTNMhjj9qNYSia2srAN+ksh5BLAkEA1hG0zkNnmB9LInSeNQ8O2dhtZrXkCw++jiwaJ49exOVkzjXHJpWaGJSHIRwXf0mhKaX+jZvIuEyYsTM4e8mcUQJBAJa2GMk6vP5rsaCqBUZLiPSMf5mSEy6TWT1nOHIGqqrY4AkyOXUaTfALqS4fqT+GFTRvsfqx3uKq+8JKZL/ufSUCQA3jLmhkMQzKeZW5OgIdfd/p7iMt5wCUUmkw2uZmy8jxpfx4VKqh5pr2M1DhTjKsF82TLzfUKTMyMuf7I4vPcAg=
-  rsa-public-key: MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDMzHTz7pVWGvJ7e/q+FKfpGXI1f/jcI7HbUXmbCnoIIbjeU42KaQep1Mkyl0jJCOjMFxz3hERYSC3CYT2PN5h56LdAFlLesCZh/axgrp59zZBFI9sSyHY85SMs/i5IYHdXY64aqtRWpFiSSNj9aYcU/owPz9N+Nx3bcWOt3a+P2wIDAQAB
 
-system:
+application:
+  auth:
+    exclude-url:
+      - /encrypt/public-key
+  token:
+    access:
+      secret: access-secret
+      prefix: Bearer
+      header: Authorization
+    refresh:
+      secret: refresh-secret
+      prefix: Bearer
+      header: Refresh-Authorization
+  encrypt:
+    rsa:
+      private-key: MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMzMdPPulVYa8nt7+r4Up+kZcjV/+NwjsdtReZsKegghuN5TjYppB6nUyTKXSMkI6MwXHPeERFhILcJhPY83mHnot0AWUt6wJmH9rGCunn3NkEUj2xLIdjzlIyz+Lkhgd1djrhqq1FakWJJI2P1phxT+jA/P0343HdtxY63dr4/bAgMBAAECgYAeIF178gwpycutz+5yE8Z3ix9lMK7CbhsgcNB7YYPTZRKK3K5PlA+6iJYS88o94ypLti1ern2soZbe/JWlAb/+EM7T/gfJgAavcSRWnPFycZvshKEA/fQA4sBfkCYzek1WIoIutGadO4/e4gk6jqNxR2oaby6ORvsd+l2NHeZqQQJBANeaKeYTHpYVgE/Qusz7mOmnsNdadhFpahefkSpXbyUmpOUewjsqOF6SZ6Pj6ZarzoVneSapkFM8geW+ODMW5LECQQDzLBPPqyFZItQflidBNkk8raApqIY5i9qkjUQdMCtFUDmx1iRf37/uAoDpmxQTNMhjj9qNYSia2srAN+ksh5BLAkEA1hG0zkNnmB9LInSeNQ8O2dhtZrXkCw++jiwaJ49exOVkzjXHJpWaGJSHIRwXf0mhKaX+jZvIuEyYsTM4e8mcUQJBAJa2GMk6vP5rsaCqBUZLiPSMf5mSEy6TWT1nOHIGqqrY4AkyOXUaTfALqS4fqT+GFTRvsfqx3uKq+8JKZL/ufSUCQA3jLmhkMQzKeZW5OgIdfd/p7iMt5wCUUmkw2uZmy8jxpfx4VKqh5pr2M1DhTjKsF82TLzfUKTMyMuf7I4vPcAg=
+      public-key: MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDMzHTz7pVWGvJ7e/q+FKfpGXI1f/jcI7HbUXmbCnoIIbjeU42KaQep1Mkyl0jJCOjMFxz3hERYSC3CYT2PN5h56LdAFlLesCZh/axgrp59zZBFI9sSyHY85SMs/i5IYHdXY64aqtRWpFiSSNj9aYcU/owPz9N+Nx3bcWOt3a+P2wIDAQAB
   cache:
     type: redis
 

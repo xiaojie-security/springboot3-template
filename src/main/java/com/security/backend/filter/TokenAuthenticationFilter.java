@@ -5,9 +5,8 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpStatus;
 
 import com.security.backend.constant.RequestAttributeConstant;
-import com.security.backend.context.ContextHolder;
 import com.security.backend.handler.JwtTokenHandler;
-import com.security.backend.properties.SecurityProperties;
+import com.security.backend.config.properties.TokenProperties;
 import com.security.backend.utils.HttpServletUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
@@ -15,16 +14,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * token 过滤拦截器
@@ -33,7 +25,7 @@ import java.util.List;
 public class TokenAuthenticationFilter extends OncePerRequestFilter {
 
     @Resource
-    private SecurityProperties securityProperties;
+    private TokenProperties tokenProperties;
 
     @Resource
     private JwtTokenHandler jwtTokenHandler;
@@ -41,7 +33,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         HttpServletUtils servletUtils = new HttpServletUtils(request,response);
-        String accessToken = servletUtils.getAttributeSafe(securityProperties.getAccess().getHeader(),String.class);
+        String accessToken = servletUtils.getAttributeSafe(tokenProperties.getAccess().getHeader(),String.class);
 
         // 判断token是否为空，如果为空则放行请求（允许匿名访问）
         if (StrUtil.isEmpty(accessToken)) {
@@ -51,7 +43,7 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String accessSecretKey = securityProperties.getAccess().getSecret();
+        String accessSecretKey = tokenProperties.getAccess().getSecret();
         String username;
         Long userId;
 

@@ -1,6 +1,6 @@
 package com.security.backend.encrypt;
 
-import com.security.backend.properties.SecurityProperties;
+import com.security.backend.config.properties.RsaEncryptProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
@@ -63,7 +63,7 @@ public class EncryptService implements InitializingBean {
     /**
      * 安全配置。
      */
-    private final SecurityProperties securityProperties;
+    private final RsaEncryptProperties rsaEncryptProperties;
 
     /**
      * 安全随机数。
@@ -82,8 +82,8 @@ public class EncryptService implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        String privateKeyText = securityProperties.getRsaPrivateKey();
-        String publicKeyText = securityProperties.getRsaPublicKey();
+        String privateKeyText = rsaEncryptProperties.getPrivateKey();
+        String publicKeyText = rsaEncryptProperties.getPublicKey();
 
         if (!StringUtils.hasText(privateKeyText) || !StringUtils.hasText(publicKeyText)) {
             log.error("EncryptService.afterPropertiesSet RSA密钥配置不完整，请检查配置");
@@ -94,7 +94,7 @@ public class EncryptService implements InitializingBean {
             KeyFactory keyFactory = KeyFactory.getInstance(RSA_ALGORITHM);
             this.privateKey = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(privateKeyText)));
             this.publicKey = keyFactory.generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(publicKeyText)));
-            log.info("EncryptService.afterPropertiesSet 混合加密服务初始化成功");
+            log.debug("EncryptService.afterPropertiesSet 混合加密服务初始化成功");
         } catch (Exception e) {
             log.error("EncryptService.afterPropertiesSet 混合加密服务初始化失败", e);
             throw new RuntimeException("RSA初始化失败", e);
@@ -222,7 +222,7 @@ public class EncryptService implements InitializingBean {
      * @return Base64格式的公钥
      */
     public String getPublicKey() {
-        return securityProperties.getRsaPublicKey();
+        return rsaEncryptProperties.getPublicKey();
     }
 
     /**

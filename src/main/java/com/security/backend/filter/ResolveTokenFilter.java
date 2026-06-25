@@ -1,7 +1,8 @@
 package com.security.backend.filter;
 
 import cn.hutool.core.util.StrUtil;
-import com.security.backend.properties.SecurityProperties;
+import com.security.backend.config.properties.TokenProperties;
+import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +23,8 @@ public class ResolveTokenFilter extends OncePerRequestFilter {
     /**
      * 安全配置属性。
      */
-    private final SecurityProperties securityProperties;
+    @Resource
+    private TokenProperties tokenProperties;
 
     /**
      * 解析请求头中的令牌，并将规范化后的令牌传递给下游过滤器。
@@ -35,7 +37,7 @@ public class ResolveTokenFilter extends OncePerRequestFilter {
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        SecurityProperties.Certificate access = securityProperties.getAccess();
+        TokenProperties.Certificate access = tokenProperties.getAccess();
         String header = access.getHeader();
         String token = request.getHeader(header);
         if (StrUtil.isEmpty(token)) {

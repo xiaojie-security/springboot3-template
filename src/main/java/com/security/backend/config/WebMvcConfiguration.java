@@ -1,10 +1,10 @@
 package com.security.backend.config;
 
+import com.security.backend.config.properties.AuthProperties;
 import com.security.backend.interceptor.ContextClearInterceptor;
 import com.security.backend.interceptor.NonceInterceptor;
 import com.security.backend.interceptor.SystemMaintenanceInterceptor;
 import com.security.backend.interceptor.TimestampInterceptor;
-import com.security.backend.properties.SecurityProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WebMvcConfiguration implements WebMvcConfigurer {
 
-    private final SecurityProperties securityProperties;
+    private final AuthProperties authProperties;
 
     @Bean
     public ContextClearInterceptor contextClearInterceptor() {
@@ -52,7 +52,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        List<String> excludeUrl = securityProperties.getExcludeUrl();
+        List<String> excludeUrl = authProperties.getExcludeUrl();
 
         registry.addInterceptor(systemMaintenanceInterceptor())
                 .order(-1)

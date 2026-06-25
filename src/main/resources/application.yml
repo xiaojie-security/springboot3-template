@@ -87,6 +87,9 @@ spring:
           max-wait: 3000ms
         # Lettuce客户端关闭超时时间
         shutdown-timeout: 1000ms
+  ai:
+    dashscope:
+      api-key: ${AI_DASHSCOPE_API_KEY:sk-ws-H.RYIPXHP.RSVJ.MEUCIQCWlmnTTTnHfFCqvcaVL57SYgKQRrtRrwr31ev9qpJ7CAIgdI4oH8CXF0UPln55T8dNcCe2le0Lc3RJY4zFTt72diA}
 
 # MyBatis-Plus配置
 mybatis-plus:

@@ -24,7 +24,7 @@ public class CacheConfiguration {
      */
     @Bean
     @ConditionalOnProperty(
-            prefix = "system.cache",
+            prefix = "application.cache",
             name = "type",
             havingValue = "local"
     )
@@ -40,7 +40,7 @@ public class CacheConfiguration {
      */
     @Bean
     @ConditionalOnProperty(
-            prefix = "system.cache",
+            prefix = "application.cache",
             name = "type",
             havingValue = "redis"
     )

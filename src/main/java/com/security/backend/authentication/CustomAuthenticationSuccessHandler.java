@@ -14,7 +14,7 @@ import com.security.backend.exception.AuthenticationBusinessException;
 import com.security.backend.handler.JwtTokenHandler;
 import com.security.backend.handler.RedisKeysHandler;
 import com.security.backend.handler.SysConfigHandler;
-import com.security.backend.properties.SecurityProperties;
+import com.security.backend.config.properties.TokenProperties;
 import com.security.backend.utils.HttpServletUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Slf4j
 public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler{
-    private final SecurityProperties securityProperties;
+    private final TokenProperties tokenProperties;
     private final SysConfigHandler sysConfigHandler;
     private final StringRedisTemplate redisTemplate;
     private final JwtTokenHandler jwtTokenHandler;
@@ -45,8 +45,8 @@ public class CustomAuthenticationSuccessHandler implements AuthenticationSuccess
         Long userId = principal.getUserId();
         log.info("AuthenticationSuccessHandlerImpl.onAuthenticationSuccess 认证成功 请求路径={} 用户名={}",request.getRequestURI(), username);
         // 1. 生成token
-        String accessToken = jwtTokenHandler.createAccessToken(username, userId, securityProperties.getAccess().getSecret());
-        String refreshToken = jwtTokenHandler.createRefreshToken(securityProperties.getRefresh().getSecret());
+        String accessToken = jwtTokenHandler.createAccessToken(username, userId, tokenProperties.getAccess().getSecret());
+        String refreshToken = jwtTokenHandler.createRefreshToken(tokenProperties.getRefresh().getSecret());
 
         // 2. 得到设备ID
         String deviceId = ContextHolder.getRequestContext().getDeviceId();
