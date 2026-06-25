@@ -82,7 +82,7 @@ public class OperationLogAspect {
             logEntity.setDescription(operationLog.description());
 
             // 2. 收集请求基本信息
-            logEntity.setRequestUrl(request.getRequestURL().toString());
+            logEntity.setRequestUrl(request.getRequestURI());
             logEntity.setRequestMethod(request.getMethod());
             logEntity.setIpv4(requestUtils.getIpv4());
             logEntity.setIpv6(requestUtils.getIpv6());
@@ -126,61 +126,6 @@ public class OperationLogAspect {
             // 异步保存日志
             CompletableFuture.runAsync(() -> operationLogService.save(logEntity));
         }
-    }
-
-
-    /**
-     * 获取方法参数（当请求体为空时的备选方案）
-     */
-    private String getMethodParams(ProceedingJoinPoint joinPoint) {
-        try {
-            Object[] args = joinPoint.getArgs();
-            if (args == null || args.length == 0) {
-                return null;
-            }
-
-            // 过滤掉HttpServletRequest/Response等非业务参数
-            List<Object> businessParams = Arrays.stream(args)
-                    .filter(arg -> !(arg instanceof HttpServletRequest))
-                    .filter(arg -> !(arg instanceof HttpServletResponse))
-                    .filter(arg -> !(arg instanceof MultipartFile))
-                    .collect(Collectors.toList());
-
-            if (businessParams.isEmpty()) {
-                return null;
-            }
-
-            String paramsJson = JSONUtil.toJsonStr(businessParams);
-            return truncateContent(paramsJson);
-
-        } catch (Exception e) {
-            log.warn("OperationLogAspect.getMethodParams 获取方法参数失败", e);
-            return null;
-        }
-    }
-
-    /**
-     * 判断是否为Body请求
-     */
-    private boolean isBodyRequest(HttpServletRequest request) {
-        String method = request.getMethod();
-        String contentType = request.getContentType();
-
-        if (contentType == null) {
-            return false;
-        }
-
-        // POST/PUT/PATCH 且非表单/文件上传
-        if ("POST".equalsIgnoreCase(method) ||
-                "PUT".equalsIgnoreCase(method) ||
-                "PATCH".equalsIgnoreCase(method)) {
-
-            return contentType.contains("application/json") ||
-                    contentType.contains("application/xml") ||
-                    contentType.contains("text/plain");
-        }
-
-        return false;
     }
 
     /**
