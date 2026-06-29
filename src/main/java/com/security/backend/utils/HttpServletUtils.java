@@ -228,6 +228,11 @@ public record HttpServletUtils(HttpServletRequest request, HttpServletResponse r
         this(null, response);
     }
 
+    public HttpServletUtils createHttpServletUtils(HttpServletRequest request, HttpServletResponse response) {
+        return new HttpServletUtils(request, response);
+    }
+
+
     // ==================== 1. 获取 IPv4 地址 ====================
 
     /**

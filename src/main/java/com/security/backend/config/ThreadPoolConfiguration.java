@@ -2,19 +2,29 @@ package com.security.backend.config;
 
 import com.security.backend.decorator.ContextCopyingDecorator;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
 @Slf4j
-public class ThreadPoolConfiguration {
+public class ThreadPoolConfiguration implements ApplicationContextAware , DisposableBean {
 
     private static final int cpuCores = Runtime.getRuntime().availableProcessors();
+
+    private ApplicationContext applicationContext;
 
     /**
      * 1. 核心业务线程池 - 处理订单、支付等关键链路
@@ -97,14 +107,16 @@ public class ThreadPoolConfiguration {
         return executor;
     }
 
-    /**
-     * 关闭所有线程池
-     */
-    @PreDestroy
-    public void destroy() {
-        shutdownExecutor("coreBusinessExecutor", coreBusinessExecutor());
-        shutdownExecutor("batchExecutor", batchExecutor());
-        shutdownExecutor("ioIntensiveExecutor", ioIntensiveExecutor());
+    @Override
+    public void destroy() throws Exception {
+        Map<String, ThreadPoolTaskExecutor> beansOfType = applicationContext.getBeansOfType(ThreadPoolTaskExecutor.class);
+        for (Map.Entry<String, ThreadPoolTaskExecutor> entry : beansOfType.entrySet()) {
+            try {
+                shutdownExecutor(entry.getKey(), entry.getValue());
+            } catch (Exception e) {
+                log.error("ThreadPoolConfiguration.destroy 关闭线程池 {} 时发生异常", entry.getKey(), e);
+            }
+        }
     }
 
     private void shutdownExecutor(String poolName, ThreadPoolTaskExecutor executor) {
@@ -122,5 +134,10 @@ public class ThreadPoolConfiguration {
             }
             log.info("ThreadPoolConfiguration.shutdownExecutor 线程池 {} 关闭完成", poolName);
         }
+    }
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
     }
 }

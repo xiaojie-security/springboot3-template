@@ -11,7 +11,6 @@
             <result property="requestUrl" column="request_url" jdbcType="VARCHAR"/>
             <result property="requestMethod" column="request_method" jdbcType="VARCHAR"/>
             <result property="requestParams" column="request_params" jdbcType="VARCHAR"/>
-            <result property="requestBody" column="request_body" jdbcType="VARCHAR"/>
             <result property="responseBody" column="response_body" jdbcType="VARCHAR"/>
             <result property="userId" column="user_id" jdbcType="BIGINT"/>
             <result property="username" column="username" jdbcType="VARCHAR"/>

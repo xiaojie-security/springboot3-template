@@ -1,5 +1,6 @@
 package com.security.backend.config.properties;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -25,13 +26,12 @@ public class TokenProperties implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() throws Exception {
-
-        // 获取配置的认证密钥
-        String accessSecretKey = this.access.secret;
-        String refreshSecretKey = this.refresh.secret;
-        this.access.secret = SecureUtil.md5(accessSecretKey);
-        this.refresh.secret = SecureUtil.md5(refreshSecretKey);
-
+        if (StrUtil.isNotEmpty(this.access.secret)) {
+            this.access.secret = SecureUtil.md5(this.access.secret);
+        }
+        if (StrUtil.isNotEmpty(this.refresh.secret)) {
+            this.refresh.secret = SecureUtil.md5(this.refresh.secret);
+        }
         log.debug("TokenProperties.afterPropertiesSet 加载成功");
     }
 
@@ -49,11 +49,11 @@ public class TokenProperties implements InitializingBean {
         /**
          * JWT 令牌请求头前缀
          */
-        private String prefix = "Bearer ";
+        private String prefix;
 
         /**
          * JWT 令牌请求头名称
          */
-        private String header = "Authorization";
+        private String header;
     }
 }

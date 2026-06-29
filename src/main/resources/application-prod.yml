@@ -11,17 +11,21 @@ redis:
   port: 6379
   password: redis
 
-security:
-  access:
-    secret: ${SECURITY_ACCESS_SECRET}
-    prefix: Bearer
-    header: Authorization
-  refresh:
-    secret: ${SECURITY_REFRESH_SECRET}
-    prefix: Bearer
-    header: Refresh-Authorization
-  exclude-url:
-    - /encrypt/**
-  rsa-private-key: ${SECURITY_RSA_PRIVATE_KEY}
-  rsa-public-key: ${SECURITY_RSA_PUBLIC_KEY}
-
+application:
+  auth:
+    exclude-url:
+      - /encrypt/public-key
+  token:
+    access:
+      secret: ${SECURITY_ACCESS_SECRET}
+      prefix: Bearer
+      header: Authorization
+    refresh:
+      secret: ${SECURITY_REFRESH_SECRET}
+      header: Refresh-Authorization
+  encrypt:
+    rsa:
+      private-key: ${SECURITY_RSA_PRIVATE_KEY}
+      public-key: ${SECURITY_RSA_PUBLIC_KEY}
+  cache:
+    type: redis

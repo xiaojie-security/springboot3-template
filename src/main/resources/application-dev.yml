@@ -23,7 +23,6 @@ application:
       header: Authorization
     refresh:
       secret: refresh-secret
-      prefix: Bearer
       header: Refresh-Authorization
   encrypt:
     rsa:

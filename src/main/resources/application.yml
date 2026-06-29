@@ -116,4 +116,4 @@ logging:
     dateformat: yyyy-MM-dd HH:mm:ss
   level:
     com.security.backend: debug
-    org.springframework.security.web.FilterChainProxy: debug
+    org.springframework.security: debug

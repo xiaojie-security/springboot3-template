@@ -17,4 +17,10 @@ public class LoginDto {
      */
     @NotNull(message = "登录凭证不可为空")
     private String credentials;
+
+    /**
+     * 登录渠道
+     */
+    @NotNull(message = "登录渠道不可为空")
+    private String channel;
 }
